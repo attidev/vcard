@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>vCard QR 코드 생성기</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📇 vCard QR 코드 생성기</h1>
+            <p>CSV 파일을 업로드하여 여러 명의 QR 코드를 한 번에 생성하세요</p>
+        </header>
+
+        <div class="upload-section">
+            <div class="upload-box" id="uploadBox">
+                <input type="file" id="csvFile" accept=".csv" style="display: none;">
+                <label for="csvFile" class="upload-label">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <span>CSV 파일 선택</span>
+                    <small>또는 드래그 앤 드롭</small>
+                </label>
+            </div>
+            <div class="template-link">
+                <a href="template.csv" download>📥 CSV 템플릿 다운로드</a>
+            </div>
+        </div>
+
+        <div class="settings-section" id="settingsSection" style="display: none;">
+            <h2>공통 설정</h2>
+            <div class="form-group">
+                <label for="companyName">회사명 *</label>
+                <input type="text" id="companyName" placeholder="예: (주)ABC회사" value="남양인터내셔날">
+            </div>
+            <div class="form-group">
+                <label for="companyAddress">회사 주소</label>
+                <input type="text" id="companyAddress" placeholder="예: 서울시 강남구 테헤란로 123" value="서울 성동구 뚝섬로1길 63, 701호">
+            </div>
+            <div class="form-group">
+                <label for="companyWebsite">회사 웹사이트</label>
+                <input type="text" id="companyWebsite" placeholder="예: https://www.company.com" value="http://www.namyang-intl.com">
+            </div>
+            <button id="generateBtn" class="btn btn-primary">QR 코드 생성</button>
+        </div>
+
+        <div class="preview-section" id="previewSection" style="display: none;">
+            <div class="preview-header">
+                <h2>생성된 QR 코드</h2>
+                <div class="preview-actions">
+                    <button id="downloadAllBtn" class="btn btn-secondary">전체 다운로드 (ZIP)</button>
+                    <button id="resetBtn" class="btn btn-outline">다시 시작</button>
+                </div>
+            </div>
+            <div class="qr-grid" id="qrGrid"></div>
+        </div>
+    </div>
+
+    <!-- 로컬 파일 우선, 없으면 CDN 사용 -->
+    <script src="qrcode.min.js" onerror="loadQRCodeFromCDN()"></script>
+    <script src="jszip.min.js" onerror="loadJSZipFromCDN()"></script>
+    
+    <script>
+        // 로컬 파일 로드 실패 시 CDN에서 로드
+        const qrcodeCDNs = [
+            'https://cdn.jsdelivr.net/npm/qrcode@1.2.2/build/qrcode.min.js',
+            'https://unpkg.com/qrcode@1.2.2/build/qrcode.min.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.2.2/qrcode.min.js',
+            'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js'
+        ];
+        
+        const jszipCDNs = [
+            'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
+            'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
+        ];
+        
+        let qrcodeCDNIndex = 0;
+        let jszipCDNIndex = 0;
+        
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = () => {
+                    setTimeout(() => resolve(), 100);
+                };
+                script.onerror = () => reject();
+                document.head.appendChild(script);
+            });
+        }
+        
+        async function loadQRCodeFromCDN() {
+            if (typeof QRCode !== 'undefined') return;
+            
+            for (let i = 0; i < qrcodeCDNs.length; i++) {
+                try {
+                    await loadScript(qrcodeCDNs[i]);
+                    if (typeof QRCode !== 'undefined') {
+                        console.log('✅ QRCode 로드 성공:', qrcodeCDNs[i]);
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('QRCode 로드 실패:', qrcodeCDNs[i]);
+                }
+            }
+            showLibraryError('QRCode');
+        }
+        
+        async function loadJSZipFromCDN() {
+            if (typeof JSZip !== 'undefined') return;
+            
+            for (let i = 0; i < jszipCDNs.length; i++) {
+                try {
+                    await loadScript(jszipCDNs[i]);
+                    if (typeof JSZip !== 'undefined') {
+                        console.log('✅ JSZip 로드 성공:', jszipCDNs[i]);
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('JSZip 로드 실패:', jszipCDNs[i]);
+                }
+            }
+            showLibraryError('JSZip');
+        }
+        
+        function showLibraryError(libName) {
+            const errorMsg = document.createElement('div');
+            errorMsg.className = 'error';
+            errorMsg.style.cssText = 'position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 10000; max-width: 700px; padding: 25px; text-align: center; line-height: 1.8;';
+            let msg = `⚠️ ${libName} 라이브러리 로드 실패\n\n`;
+            msg += '해결 방법:\n';
+            msg += '1. 다음 링크에서 라이브러리를 다운로드하세요:\n';
+            if (libName === 'QRCode') {
+                msg += '   https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js\n';
+                msg += '   파일명: qrcode.min.js\n';
+            } else {
+                msg += '   https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js\n';
+                msg += '   파일명: jszip.min.js\n';
+            }
+            msg += '\n2. 다운로드한 파일을 이 HTML 파일과 같은 폴더에 저장하세요.\n';
+            msg += '\n3. 페이지를 새로고침하세요.';
+            errorMsg.innerHTML = msg.replace(/\n/g, '<br>');
+            document.body.appendChild(errorMsg);
+        }
+        
+        // 페이지 로드 후 라이브러리 확인
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                if (typeof QRCode === 'undefined') {
+                    loadQRCodeFromCDN();
+                }
+                if (typeof JSZip === 'undefined') {
+                    loadJSZipFromCDN();
+                }
+                
+                // 라이브러리가 모두 로드되면 app.js 로드
+                if (typeof QRCode !== 'undefined' && typeof JSZip !== 'undefined') {
+                    const appScript = document.createElement('script');
+                    appScript.src = 'app.js';
+                    document.body.appendChild(appScript);
+                }
+            }, 500);
+        });
+    </script>
+</body>
+</html>
