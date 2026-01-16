@@ -154,7 +154,8 @@ function generateVCard(row, companyName, companyAddress, companyWebsite, useMini
     const department = row['부서'] || row['department'] || row['Department'] || '';
 
     const cleanName = normalizeText(name);
-    const cleanPosition = useMinimal ? '' : normalizeText(position);
+    // 직책은 원본 그대로 유지 (대소문자 보존)
+    const cleanPosition = useMinimal ? '' : (position ? position.trim() : '');
     const cleanPhone = normalizePhone(phone);
     const cleanEmails = emails.map(e => normalizeText(e)).filter(e => e);
     const cleanMobile = normalizePhone(mobile);
