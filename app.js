@@ -65,7 +65,19 @@ function parseCSV(text) {
         
         const row = {};
         headers.forEach((header, index) => {
-            row[header] = values[index] ? values[index].trim() : '';
+            const value = values[index] ? values[index].trim() : '';
+            // 같은 헤더명이 여러 개 있을 경우 배열로 저장 (예: 이메일이 두 개)
+            if (row[header] !== undefined) {
+                if (Array.isArray(row[header])) {
+                    if (value) row[header].push(value);
+                } else {
+                    const existingValue = row[header];
+                    row[header] = existingValue ? [existingValue] : [];
+                    if (value) row[header].push(value);
+                }
+            } else {
+                row[header] = value;
+            }
         });
         csvData.push(row);
     }
@@ -135,14 +147,16 @@ function generateVCard(row, companyName, companyAddress, companyWebsite, useMini
     const name = row['이름'] || row['name'] || row['Name'] || '';
     const position = row['직책'] || row['position'] || row['Position'] || row['직위'] || '';
     const phone = row['전화번호'] || row['phone'] || row['Phone'] || row['핸드폰'] || '';
-    const email = row['이메일'] || row['email'] || row['Email'] || '';
+    // 이메일이 배열일 수도 있고 단일 값일 수도 있음
+    const emailRaw = row['이메일'] || row['email'] || row['Email'] || '';
+    const emails = Array.isArray(emailRaw) ? emailRaw : (emailRaw ? [emailRaw] : []);
     const mobile = row['휴대폰'] || row['mobile'] || row['Mobile'] || phone;
     const department = row['부서'] || row['department'] || row['Department'] || '';
 
     const cleanName = normalizeText(name);
     const cleanPosition = useMinimal ? '' : normalizeText(position);
     const cleanPhone = normalizePhone(phone);
-    const cleanEmail = normalizeText(email);
+    const cleanEmails = emails.map(e => normalizeText(e)).filter(e => e);
     const cleanMobile = normalizePhone(mobile);
     const cleanDepartment = normalizeText(department);
     const cleanCompanyName = useMinimal ? '' : normalizeText(companyName);
@@ -163,7 +177,10 @@ function generateVCard(row, companyName, companyAddress, companyWebsite, useMini
         if (cleanName) {
             vcardParts.push(`N:${cleanName}`); // ZXing 예제: FN 없음
         }
-        if (cleanEmail) vcardParts.push(`EMAIL:${cleanEmail}`);
+        // 이메일이 여러 개 있을 수 있음
+        cleanEmails.forEach(email => {
+            if (email) vcardParts.push(`EMAIL:${email}`);
+        });
         if (cleanMobile) vcardParts.push(`TEL:${cleanMobile}`);
         vcardParts.push('END:VCARD');
         return vcardParts.join('\n'); // ZXing 방식: \n만 사용
@@ -202,10 +219,10 @@ function generateVCard(row, companyName, companyAddress, companyWebsite, useMini
         vcardParts.push(`URL:${website}`);
     }
     
-    // 이메일 (ZXing 예제 순서: URL 다음)
-    if (cleanEmail) {
-        vcardParts.push(`EMAIL:${cleanEmail}`);
-    }
+    // 이메일 (ZXing 예제 순서: URL 다음) - 여러 개의 이메일 지원
+    cleanEmails.forEach(email => {
+        if (email) vcardParts.push(`EMAIL:${email}`);
+    });
     
     // 주소 (ZXing 예제 순서: EMAIL 다음, 쉼표 이스케이프)
     // 예제: ADR:서울 성동구 뚝섬로1길 63\, 701호
@@ -238,14 +255,18 @@ function buildPayloads(row, companyName, companyAddress, companyWebsite) {
     if (minimalVCard && minimalVCard !== fullVCard) payloads.push(minimalVCard);
 
     // 2. 간단한 연락처 방식 (fallback)
-    const email = normalizeText(row['이메일'] || row['email'] || row['Email'] || '');
+    const emailRaw = row['이메일'] || row['email'] || row['Email'] || '';
+    const emails = Array.isArray(emailRaw) ? emailRaw : (emailRaw ? [emailRaw] : []);
     const phone = normalizePhone(
         row['휴대폰'] || row['mobile'] || row['Mobile'] || row['전화번호'] || row['phone'] || ''
     );
     const name = normalizeText(row['이름'] || row['name'] || row['Name'] || '');
 
     if (phone) payloads.push(`tel:${phone}`);
-    if (email) payloads.push(`mailto:${email}`);
+    emails.forEach(email => {
+        const cleanEmail = normalizeText(email);
+        if (cleanEmail) payloads.push(`mailto:${cleanEmail}`);
+    });
     if (name) payloads.push(name);
 
     return Array.from(new Set(payloads.filter(Boolean)));
