@@ -243,6 +243,7 @@ header p {
     margin-top: 5px;
     color: #666;
     font-size: 0.9em;
+    text-transform: none;
 }
 
 .qr-item .download-btn {
